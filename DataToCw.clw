@@ -190,7 +190,7 @@ Window                  WINDOW('Encode for Clarion'),AT(,,567,245),CENTER,GRAY,S
 EncodeTheData        ROUTINE
 
     IF CompressData !This is where we compress the data
-        ST.gzip
+        ST.gzip(9)
     END
 
     !If you want to ENCRYPT the data, do that here. Not before the compress.
