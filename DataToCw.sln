@@ -1,0 +1,18 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 2012
+# Clarion 2.1.0.2447
+Project("{12B76EC0-1D7B-4FA7-A7D0-C524288B48A1}") = "DataToCw", "DataToCw.cwproj", "{DD6FD426-DA16-4E54-96AE-654095EFC31C}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Win32 = Debug|Win32
+		Release|Win32 = Release|Win32
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{DD6FD426-DA16-4E54-96AE-654095EFC31C}.Debug|Win32.Build.0 = Debug|Win32
+		{DD6FD426-DA16-4E54-96AE-654095EFC31C}.Debug|Win32.ActiveCfg = Debug|Win32
+		{DD6FD426-DA16-4E54-96AE-654095EFC31C}.Release|Win32.Build.0 = Release|Win32
+		{DD6FD426-DA16-4E54-96AE-654095EFC31C}.Release|Win32.ActiveCfg = Release|Win32
+	EndGlobalSection
+EndGlobal
