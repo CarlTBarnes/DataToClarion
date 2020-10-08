@@ -6,7 +6,10 @@
 !Requires StringTheory if you want to to be able to decompress the data or compile this application.
 !https://www.capesoft.com/accessories/StringTheorysp.htm
 
+! Modified 10/8/2020 by Carl Barnes 
+!   Repeat Last Encode so can try different parameters
 
+!Region License
 ! * Created with Clarion 10
 ! * User: jslarve
 ! * Date: 5/25/2019
@@ -32,7 +35,9 @@
 !LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 !OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 !SOFTWARE.
+!endRegion License
 
+!Region Strings
 !Below, is the MIT license processed with this program.
 MyLicense    STRING('<01fH,08bH,008H,000H,000H,000H,000H,000H,000H,00bH,05cH,052H,0ddH,06fH,09bH>' &|
                     '<030H,010H,07fH,047H,0e2H,07fH,038H,0e5H,0a9H,095H,050H,0f7H,0f1H,0b6H,0bdH>' &|
@@ -108,18 +113,16 @@ Instructions    STRING('<01fH,08bH,008H,000H,000H,000H,000H,000H,000H,00bH,06cH,
                        '<03aH,09dH,0e7H,0fdH,08fH,025H,014H,0bbH,064H,07aH,059H,04aH,0ceH,0b5H,079H>' &|
                        '<07aH,087H,08dH,041H,036H,02bH,071H,0faH,0b6H,037H,07fH,001H,000H,000H,0ffH>' &|
                        '<0ffH>')
-    
-                    MAP
-                        Main
-                        Format4Clarion(STRING pString,<STRING pLabel>,<STRING pDataType>,LONG pMaxWidth=40),STRING
-                        MODULE('')
-                            LtoA(LONG num ,*CSTRING s, SIGNED radix),ULONG,RAW,NAME('_ltoa'),PROC
-                        END
-                    END
+!endRegion License    
+    MAP
+Main                   Procedure()
+        MODULE('RTL')
+            LtoA(LONG num ,*CSTRING s, SIGNED radix),ULONG,RAW,NAME('_ltoa'),PROC
+        END
+    END
 
     CODE
-        
-        Main
+    Main()
         
 Main                PROCEDURE
 
@@ -127,68 +130,81 @@ DataLabel           STRING(60) !The label of your variable
 DataType            STRING(60) !Would typically be a STRING, or EQUATE. CSTRING is not recommended because there could be NULL characters. 
 MaxWidth            SHORT      !Max characters wide (in the editor)
 ST                  StringTheory !Main StringTheory object
+stLastTime          StringTheory !Repeat Last Button
 FileName            STRING(FILE:MaxFilePath) !File to be loaded, if applicable
 CompressData        BYTE       !If we're going to gzip/gunzip
 MyLicenseString     STRING(1500) !Gunzipped license string
 InstructionText     STRING(1000) !Gunzipped instructions RTF
 
-Window                  WINDOW('Encode for Clarion'),AT(,,567,245),CENTER,GRAY,SYSTEM, |
-                            ICON('NEXTPG.ICO'),FONT('Segoe UI',8)
-                            PROMPT('Data &Label:'),AT(5,6),USE(?DataLabelPrompt)
-                            ENTRY(@s60),AT(49,4,153),USE(DataLabel)
-                            PROMPT('Data &Type:'),AT(5,20),USE(?DataTypePrompt)
-                            ENTRY(@s60),AT(49,20,153),USE(DataType)
-                            PROMPT('Max &Width:'),AT(5,36),USE(?MaxWidthPrompt)
-                            SPIN(@n3),AT(49,36,26),USE(MaxWidth),RIGHT
-                            CHECK('C&ompress'),AT(81,37),USE(CompressData)
-                            BUTTON('Encode from &File'),AT(3,51,202),USE(?EncodeFileButton)
-                            BUTTON('Encode text from Windows &Clipboard'),AT(3,67,202),USE(?EncodeClipboardButton) |
-                
-                            BUTTON('&Close'),AT(507,227,57,14),USE(?CloseButton),STD(STD:Close)
-                            GROUP('group1'),AT(209,4,354,219),USE(?GROUP1),BOXED,BEVEL(0,0,6666H)
-                                PROMPT('The text below was encoded with this program (with "compress' & |
-                                    '" enabled) and compiled into the data section.'),AT(217,7,320,17), |
-                                    USE(?PROMPT1)
-                                TEXT,AT(215,28,343,188),USE(MyLicenseString),VSCROLL,COLOR(COLOR:BTNFACE), |
-                                    READONLY
-                            END
-                            TEXT,AT(5,86,199,137),USE(InstructionText),VSCROLL,COLOR(COLOR:BTNFACE), |
-                                READONLY,RTF(TEXT:FIELD)
-                        END
+Window WINDOW('Encode for Clarion'),AT(,,567,245),CENTER,GRAY,SYSTEM,ICON(ICON:NextPage),FONT('Segoe UI',8)
+        PROMPT('Data &Label:'),AT(5,6),USE(?DataLabelPrompt)
+        ENTRY(@s60),AT(49,4,153),USE(DataLabel)
+        PROMPT('Data &Type:'),AT(5,20),USE(?DataTypePrompt)
+        ENTRY(@s60),AT(49,20,153),USE(DataType)
+        PROMPT('Max &Width:'),AT(5,36),USE(?MaxWidthPrompt)
+        SPIN(@n3),AT(49,36,26),USE(MaxWidth),RIGHT,RANGE(40,999)
+        CHECK('C&ompress'),AT(81,37),USE(CompressData)
+        BUTTON('Encode &File...'),AT(3,67),USE(?EncodeFileButton)
+        BUTTON('Encode &Clipboard'),AT(68,67),USE(?EncodeClipboardButton)
+        BUTTON('Repeat Last'),AT(151,67),USE(?EncodeLastTimeButton),DISABLE
+        BUTTON('&Close'),AT(507,227,57,14),USE(?CloseButton),STD(STD:Close)
+        GROUP,AT(209,4,354,219),USE(?GROUP1),BOXED,BEVEL(0,0,6666H)
+            PROMPT('The text below was encoded with this program (with "compress" enabled) and compiled into the data se' & |
+                    'ction.'),AT(217,7,320,17),USE(?PROMPT1)
+            TEXT,AT(215,28,343,188),USE(MyLicenseString),VSCROLL,COLOR(COLOR:BTNFACE),READONLY
+        END
+        TEXT,AT(5,86,199,137),USE(InstructionText),VSCROLL,COLOR(COLOR:BTNFACE),READONLY,RTF(TEXT:FIELD)
+    END
 
     CODE
-        !Going to read the gzipped strings that we compiled (using this program)
-        ST.SetValue(MyLicense)!Temporarily use the StringTheory object to decompress the compiled string
-        ST.gzipped = TRUE     !Set this property so StringTheory knows it is ok to perform the gunzip
-        ST.gunzip             !Perform the gUnzip
-        MyLicenseString = ST.GetValue() !Copy the string
-        ST.SetValue(Instructions)       !Now we're reading the RTF instructions 
-        ST.gzipped = TRUE     !Set this property so StringTheory knows it is ok to perform the gunzip
-        ST.gunzip             !Perform the gUnzip
-        InstructionText = ST.GetValue() !Copy the string
-        ST.gzipped = FALSE    !Reset the flag 
-        ST.SetValue('')       !Clearing out the ST object for further use
+    !Going to read the gzipped strings that we compiled (using this program)
+    ST.SetValue(MyLicense)!Temporarily use the StringTheory object to decompress the compiled string
+    ST.gzipped = TRUE     !Set this property so StringTheory knows it is ok to perform the gunzip
+    ST.gunzip             !Perform the gUnzip
+    MyLicenseString = ST.GetValue() !Copy the string
+    ST.SetValue(Instructions)       !Now we're reading the RTF instructions 
+    ST.gzipped = TRUE     !Set this property so StringTheory knows it is ok to perform the gunzip
+    ST.gunzip             !Perform the gUnzip
+    InstructionText = ST.GetValue() !Copy the string
+    ST.gzipped = FALSE    !Reset the flag 
+    ST.SetValue('')       !Clearing out the ST object for further use
+    
+    DataLabel = 'MyField' !Default value
+    DataType  = 'STRING'  !Default value
+    MaxWidth  = 80        !Default value
 
-        DataLabel = 'MyField' !Default value
-        DataType  = 'STRING'  !Default value
-        MaxWidth  = 80        !Default value
-
-        OPEN(Window)
-        ACCEPT
-            CASE ACCEPTED()
-            OF ?EncodeFileButton
-                IF FileDialog('Select File to Encode...',FileName,'*.*', FILE:LongName)
-                    ST.LoadFile(CLIP(FileName)) !Open the file with StringTheory object
-                    DO EncodeTheData            
-                END                
-            OF ?EncodeClipboardButton
-                ST.SetValue(CLIPBOARD()) !Set the StringTheory object to what's in the clipboard
-                DO EncodeTheData
-            END
+    OPEN(Window)
+    ACCEPT
+        CASE ACCEPTED()
+        OF ?EncodeFileButton
+            IF FileDialog('Select File to Encode...',FileName,'*.*', FILE:LongName)
+                ST.Start()
+                IF ~ST.LoadFile(CLIP(FileName)) THEN !Open the file with StringTheory object 
+                    Message('Load File Failed Error ' & St.winErrorCode &' '* st.FormatMessage(St.winErrorCode))
+                    CYCLE 
+                END
+                DO EncodeTheData            
+            END                
+        OF ?EncodeClipboardButton 
+            ST.Start()
+            ST.SetValue(CLIPBOARD()) !Set the StringTheory object to what's in the clipboard
+            DO EncodeTheData
+        OF ?EncodeLastTimeButton 
+            ST.Start()
+            ST.SetValue(stLastTime) 
+            DO EncodeTheData  
         END
+    END
         
-EncodeTheData        ROUTINE
-
+EncodeTheData        ROUTINE 
+    IF ST.Length() < 1 THEN
+       Message('There is No Data to Encode.','DataToCw')
+       EXIT 
+    END
+    stLastTime.SetValue(ST) 
+    ENABLE(?EncodeLastTimeButton)
+    ?EncodeLastTimeButton{PROP:Tip}='Repeat the '& FORMAT(CLOCK(),@t3) &' Encode of '& St.Length() &' bytes'
+   
     IF CompressData !This is where we compress the data
         ST.gzip(9)
     END
@@ -196,10 +212,10 @@ EncodeTheData        ROUTINE
     !If you want to ENCRYPT the data, do that here. Not before the compress.
     
     SETCLIPBOARD(Format4Clarion(ST.GetValue(),CLIP(DataLabel),CLIP(DataType),MaxWidth)) !Set the clipboard with the results
-    ST.gzipped = FALSE !Reset the StringTheory object to accept non-compressed data
-    ST.SetValue('')
-    MESSAGE('Paste the contents of your clipboard to the data section of your code editor.')
+    ST.Start()  !was ST.SetValue('') ; ST.gzipped = FALSE !Reset the StringTheory object to accept non-compressed data
     
+    MESSAGE('Paste the contents of your clipboard to the data section of your code editor.')
+
 Format4Clarion    Procedure(String pString,<String pLabel>,<String pDataType>,Long pMaxWidth=80)!,STRING
 PAD_SIZE                EQUATE(5)
 Locals                  GROUP,PRE(LOC)
