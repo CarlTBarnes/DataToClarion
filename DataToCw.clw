@@ -8,6 +8,7 @@
 
 ! Modified 10/8/2020 by Carl Barnes 
 !   Repeat Last Encode so can try different parameters
+!   StringView() window to show results so not on clipboard
 
 !Region License
 ! * Created with Clarion 10
@@ -116,6 +117,8 @@ Instructions    STRING('<01fH,08bH,008H,000H,000H,000H,000H,000H,000H,00bH,06cH,
 !endRegion License    
     MAP
 Main                   Procedure()
+Format4Clarion         Procedure(STRING pString,<STRING pLabel>,<STRING pDataType>,LONG pMaxWidth=40),STRING !js original Hex
+StringView             Procedure(STRING StrValue, STRING CapTxt)
         MODULE('RTL')
             LtoA(LONG num ,*CSTRING s, SIGNED radix),ULONG,RAW,NAME('_ltoa'),PROC
         END
@@ -196,26 +199,62 @@ Window WINDOW('Encode for Clarion'),AT(,,567,245),CENTER,GRAY,SYSTEM,ICON(ICON:N
         END
     END
         
-EncodeTheData        ROUTINE 
+EncodeTheData        ROUTINE
+    DATA
+ViewCaption PSTRING(256)
+Stamp       PSTRING(12)   
+    CODE
     IF ST.Length() < 1 THEN
        Message('There is No Data to Encode.','DataToCw')
        EXIT 
     END
     stLastTime.SetValue(ST) 
-    ENABLE(?EncodeLastTimeButton)
-    ?EncodeLastTimeButton{PROP:Tip}='Repeat the '& FORMAT(CLOCK(),@t3) &' Encode of '& St.Length() &' bytes'
-   
+    ENABLE(?EncodeLastTimeButton) 
+    Stamp = FORMAT(CLOCK(),@t3)
+    ?EncodeLastTimeButton{PROP:Tip}='Repeat the '& Stamp &' Encode of '& St.Length() &' bytes'
+    
+    ViewCaption=Stamp & ' Encode of ' & ST.Length() & ' bytes'
     IF CompressData !This is where we compress the data
         ST.gzip(9)
+        ViewCaption=ViewCaption &', ' & St.Length() &' Compressed'
     END
 
     !If you want to ENCRYPT the data, do that here. Not before the compress.
     
-    SETCLIPBOARD(Format4Clarion(ST.GetValue(),CLIP(DataLabel),CLIP(DataType),MaxWidth)) !Set the clipboard with the results
+    !SETCLIPBOARD(Format4Clarion(ST.GetValue(),CLIP(DataLabel),CLIP(DataType),MaxWidth)) !Set the clipboard with the results
+    START(StringView,,Format4Clarion(ST.GetValue(),CLIP(DataLabel),CLIP(DataType),MaxWidth),ViewCaption)
     ST.Start()  !was ST.SetValue('') ; ST.gzipped = FALSE !Reset the StringTheory object to accept non-compressed data
     
-    MESSAGE('Paste the contents of your clipboard to the data section of your code editor.')
-
+    !MESSAGE('Paste the contents of your clipboard to the data section of your code editor.')
+!=================================================================================
+StringView PROCEDURE(STRING StrValue, STRING CapTxt)
+LenTxt  LONG,AUTO
+HexTxt  ANY
+ShowHex    BYTE
+HScrollTxt BYTE(1)
+VScrollTxt BYTE(1)
+Window WINDOW('S'),AT(,,500,140),GRAY,SYSTEM,MAX,ICON(ICON:NextPage),FONT('Segoe UI',8),RESIZE
+        TOOLBAR,AT(0,0,310,15),USE(?TB1)
+            BUTTON('&Copy'),AT(2,1,42,12),USE(?CopyBtn),ICON(ICON:Copy),FLAT,LEFT
+            BUTTON('Cl&ose'),AT(50,1,42,12),USE(?CloseBtn),STD(STD:Close),FLAT
+        END
+        TEXT,AT(0,2),FULL,USE(?Txt),FLAT,HVSCROLL,FONT('Consolas',10),READONLY
+    END
+P LONG,DIM(4),STATIC
+  CODE
+  LenTxt=SIZE(StrValue)
+  OPEN(Window)
+  IF P[4] THEN SETPOSITION(0,P[1],P[2],P[3],P[4]).
+  ?Txt{PROP:Use}=StrValue
+  0{PROP:Text}=CHOOSE(~CapTxt,'String View',CLIP(CapTxt)) & ' - Length ' & LenTxt
+  ACCEPT
+    CASE ACCEPTED()
+    OF ?CopyBtn ; SETCLIPBOARD(StrValue)
+    END
+  END
+  GETPOSITION(0,P[1],P[2],P[3],P[4])
+  RETURN
+!=================================================================================
 Format4Clarion    Procedure(String pString,<String pLabel>,<String pDataType>,Long pMaxWidth=80)!,STRING
 PAD_SIZE                EQUATE(5)
 Locals                  GROUP,PRE(LOC)
