@@ -118,6 +118,9 @@ Instructions    STRING('<01fH,08bH,008H,000H,000H,000H,000H,000H,000H,00bH,06cH,
     MAP
 Main                   Procedure()
 Format4Clarion         Procedure(STRING pString,<STRING pLabel>,<STRING pDataType>,LONG pMaxWidth=40),STRING !js original Hex
+Format4ClarionBase64   Procedure(*StringTheory st2Encode,String pLabel,String pDataType,Long pMaxWidth=80),STRING        
+Format4ClarionHEX      Procedure(*StringTheory st4Hex,String pLabel,String pDataType,Long pMaxWidth=80),STRING
+Format4ClarionDecimal  Procedure(String pStr4Dec,String pLabel,String pDataType,Long pMaxWidth=80),STRING
 StringView             Procedure(STRING StrValue, STRING CapTxt)
         MODULE('RTL')
             LtoA(LONG num ,*CSTRING s, SIGNED radix),ULONG,RAW,NAME('_ltoa'),PROC
@@ -138,6 +141,7 @@ FileName            STRING(FILE:MaxFilePath) !File to be loaded, if applicable
 CompressData        BYTE       !If we're going to gzip/gunzip
 MyLicenseString     STRING(1500) !Gunzipped license string
 InstructionText     STRING(1000) !Gunzipped instructions RTF
+StringFmt           BYTE(1)
 
 Window WINDOW('Encode for Clarion'),AT(,,567,245),CENTER,GRAY,SYSTEM,ICON(ICON:NextPage),FONT('Segoe UI',8)
         PROMPT('Data &Label:'),AT(5,6),USE(?DataLabelPrompt)
@@ -146,10 +150,17 @@ Window WINDOW('Encode for Clarion'),AT(,,567,245),CENTER,GRAY,SYSTEM,ICON(ICON:N
         ENTRY(@s60),AT(49,20,153),USE(DataType)
         PROMPT('Max &Width:'),AT(5,36),USE(?MaxWidthPrompt)
         SPIN(@n3),AT(49,36,26),USE(MaxWidth),RIGHT,RANGE(40,999)
+        PROMPT('Format:'),AT(5,53),USE(?StringFmt:Pmt)
+        OPTION,AT(43,52,160,14),USE(StringFmt)
+            RADIO('&Decimal'),AT(49,52),USE(?StringFmt:Radio1)
+            RADIO('&Hex'),AT(94,52),USE(?StringFmt:Radio2)
+            RADIO('&Base 64'),AT(125,52),USE(?StringFmt:Radio3),TIP('Base 64 Encode.<13,10>Smaller code but 33% more memory')
+            RADIO('jsHe&x'),AT(169,52),USE(?StringFmt:Radio4),TIP('Original JSlarve Hex Code')
+        END
         CHECK('C&ompress'),AT(81,37),USE(CompressData)
         BUTTON('Encode &File...'),AT(3,67),USE(?EncodeFileButton)
         BUTTON('Encode &Clipboard'),AT(68,67),USE(?EncodeClipboardButton)
-        BUTTON('Repeat Last'),AT(151,67),USE(?EncodeLastTimeButton),DISABLE
+        BUTTON('&Repeat Last'),AT(151,67),USE(?EncodeLastTimeButton),DISABLE
         BUTTON('&Close'),AT(507,227,57,14),USE(?CloseButton),STD(STD:Close)
         GROUP,AT(209,4,354,219),USE(?GROUP1),BOXED,BEVEL(0,0,6666H)
             PROMPT('The text below was encoded with this program (with "compress" enabled) and compiled into the data se' & |
@@ -176,7 +187,9 @@ Window WINDOW('Encode for Clarion'),AT(,,567,245),CENTER,GRAY,SYSTEM,ICON(ICON:N
     DataType  = 'STRING'  !Default value
     MaxWidth  = 80        !Default value
 
-    OPEN(Window)
+    OPEN(Window) 
+    ?StringFmt:Radio1{PROP:Tip}='Decimal Format <<64,65,66><13,10>Smallest code, same Memory size as Hex'
+    ?StringFmt:Radio2{PROP:Tip}='Hex Format <<040h,041h,042h><13,10>Uses mostly StringTheory code'    
     ACCEPT
         CASE ACCEPTED()
         OF ?EncodeFileButton
@@ -198,7 +211,7 @@ Window WINDOW('Encode for Clarion'),AT(,,567,245),CENTER,GRAY,SYSTEM,ICON(ICON:N
             DO EncodeTheData  
         END
     END
-        
+!-------------------------------        
 EncodeTheData        ROUTINE
     DATA
 ViewCaption PSTRING(256)
@@ -220,12 +233,120 @@ Stamp       PSTRING(12)
     END
 
     !If you want to ENCRYPT the data, do that here. Not before the compress.
-    
-    !SETCLIPBOARD(Format4Clarion(ST.GetValue(),CLIP(DataLabel),CLIP(DataType),MaxWidth)) !Set the clipboard with the results
-    START(StringView,,Format4Clarion(ST.GetValue(),CLIP(DataLabel),CLIP(DataType),MaxWidth),ViewCaption)
+    CASE StringFmt
+    OF 1 
+        START(StringView,,Format4ClarionDecimal(ST.GetValue(),CLIP(DataLabel),CLIP(DataType),MaxWidth),ViewCaption)
+    OF 2
+        START(StringView,,Format4ClarionHex(ST,CLIP(DataLabel),CLIP(DataType),MaxWidth),ViewCaption)
+    OF 3
+        START(StringView,,Format4ClarionBase64(ST,CLIP(DataLabel),CLIP(DataType),MaxWidth),ViewCaption)    
+    OF 4
+        !SETCLIPBOARD(Format4Clarion(ST.GetValue(),CLIP(DataLabel),CLIP(DataType),MaxWidth)) !Set the clipboard with the results
+        START(StringView,,Format4Clarion(ST.GetValue(),CLIP(DataLabel),CLIP(DataType),MaxWidth),ViewCaption)
+    END
     ST.Start()  !was ST.SetValue('') ; ST.gzipped = FALSE !Reset the StringTheory object to accept non-compressed data
     
     !MESSAGE('Paste the contents of your clipboard to the data section of your code editor.')
+    EXIT
+    
+!=================================================================================
+Format4ClarionBase64    Procedure(*StringTheory st2Encode,String pLabel,String pDataType,Long pMaxWidth=80)!,STRING
+st64  StringTheory
+stCW  StringTheory
+BeginLine   PSTRING(40)
+L   LONG
+    CODE
+    st64.SetValue(st2Encode)
+    st64.Base64Encode()
+    st64.Split('<13,10>')
+    BeginLine = CLIP(pLabel) &' '& CLIP(pDataType) &'('''  !Label String('
+    stCW.SetValue(BeginLine & st64.GetLine(1))
+    BeginLine=ALL(' ',LEN(BeginLine)-1) & ''''
+    LOOP L=2 TO st64.Records()
+         stCW.Append(''' &|<13,10>' & BeginLine & st64.GetLine(L))
+    END
+    stCW.Append(''')')
+    RETURN stCW.GetValue()
+!   To decode and unzip
+!        ST.SetValue(Data64andZip)
+!        ST.Base64Decode()
+!        ST.gzipped = TRUE
+!        ST.gunzip
+!=======================================================================   
+Format4ClarionDecimal Procedure(String pStr4Dec,String pLabel,String pDataType,Long pMaxWidth=80)!,STRING
+stDec   StringTheory  !Decimal Split Lines 11,22,33,44
+stCW    StringTheory
+BeginLine   PSTRING(40)
+L  LONG
+    CODE
+    IF SIZE(pStr4Dec)=0 THEN RETURN 'Null'.
+    DO String2DecimalRtn
+    BeginLine = CLIP(pLabel) &' '& CLIP(pDataType) &'('''  !Label String('
+    stCW.SetValue(BeginLine &'<<'& stDec.GetLine(1) &'>')
+    BeginLine=ALL(' ',LEN(BeginLine)-1) & ''''
+    LOOP L=2 TO stDec.Records()
+         stCW.Append(''' &|<13,10>' & BeginLine &'<<'& stDec.GetLine(L) &'>')
+    END
+    stCW.Append(''')')
+    RETURN stCW.GetValue()
+String2DecimalRtn ROUTINE !Make String  12,23,45,56,123,233<13,10>
+    DATA
+StrByte BYTE,DIM(SIZE(pStr4Dec)),OVER(pStr4Dec)
+PLine   PSTRING(256)
+POver   GROUP,OVER(PLine),PRE()
+PLen        BYTE        !is LEN(PLine)
+PLineString STRING(255) !Can have *STRING as [1 : PLen]
+        END
+Dec3    PString(4)      !One byte in Decimal
+B   LONG
+    CODE
+    IF pMaxWidth>SIZE(PLine)-5 THEN pMaxWidth=SIZE(PLine)-5.
+    pMaxWidth -= 7      !room for '<, >'&|
+    PLine=StrByte[1]    !First byte
+    LOOP B=2 TO SIZE(pStr4Dec)
+         Dec3=StrByte[B]                      !Next Byte, could format(,@n03)
+         IF PLen + len(Dec3) > pMaxWidth THEN !Won't Fit on line?
+            PLine = PLine & '<13,10>'
+            stDec.cat(PLineString[1 : PLen])
+            PLine = Dec3
+         ELSE
+            PLine = PLine &','& Dec3          !add one
+         END
+    END
+    stDec.cat(PLineString[1 : PLen])
+    stDec.Split('<13,10>')
+    EXIT
+!=======================================================================
+Format4ClarionHEX  Procedure(*StringTheory st4Hex,String pLabel,String pDataType,Long pMaxWidth=80)!,STRING
+stHex   StringTheory
+st      StringTheory
+stCW    StringTheory
+BeginLine   PSTRING(40)
+L  LONG
+    CODE
+    !Try to use ST for everything possible. Not a lot of code but maybe not easy to understand
+    !goal: '<065H,063H,074H,020H,074H,06fH,020H,074H,068H,065H,020H,066H,06fH,06cH,06cH>' &|
+    stHex.SetValue(st4Hex)
+    stHex.ToHex(st:Upper)
+    IF pMaxWidth < 60 THEN pMaxWidth=60.
+    stHex.SplitEvery((pMaxWidth-5)/5*2)  !1 byte takes 5 => <011h,022h,033h...,0FFh>'&|
+    LOOP L=1 TO stHex.Records()
+         st.SetValue(stHex.GetLine(L))
+         st.SplitEvery(2)                               ! 11 22 33 ... FF
+         st.Join('H,0')                                 ! 11h,022h,033h...,0FF
+         stHex.SetLine(L,'<<0' & St.GetValue() &'h>')   ! <011h,022h,033h...,0FFh>
+    END
+    BeginLine = CLIP(pLabel) &' '& CLIP(pDataType) &'('''  !Label String('
+    stCW.SetValue(BeginLine)
+    BeginLine=ALL(' ',LEN(BeginLine)-1) & ''''
+    LOOP L=1 TO stHex.Records()
+         IF L>1 THEN
+            stCW.Append(''' &|<13,10>' & BeginLine)
+         END
+         stCW.Append(stHex.GetLine(L))
+    END
+    stCW.Append(''')')
+    RETURN stCW.GetValue()
 !=================================================================================
 StringView PROCEDURE(STRING StrValue, STRING CapTxt)
 LenTxt  LONG,AUTO
